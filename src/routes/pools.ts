@@ -54,53 +54,57 @@ export async function poolsRoutes(fastify: FastifyInstance) {
       onRequest: [authenticate],
     },
     async (request, reply) => {
-      const joinPoolBody = z.object({
-        code: z.string(),
-      });
-      const { code } = joinPoolBody.parse(request.body);
+      try {
+        const joinPoolBody = z.object({
+          code: z.string(),
+        });
+        const { code } = joinPoolBody.parse(request.body);
 
-      const pool = await prisma.pool.findUnique({
-        where: {
-          code,
-        },
-        include: {
-          participants: {
-            where: {
-              userId: request.user.sub,
+        const pool = await prisma.pool.findUnique({
+          where: {
+            code,
+          },
+          include: {
+            participants: {
+              where: {
+                userId: request.user.sub,
+              },
             },
           },
-        },
-      });
+        });
 
-      if (!pool) {
-        return reply.status(400).send({ message: "Pool not found" });
-      }
+        if (!pool) {
+          return reply.status(400).send({ message: "Pool not found" });
+        }
 
-      if (pool.participants.length > 0) {
-        return reply
-          .status(400)
-          .send({ message: "You already joined this pool" });
-      }
+        if (pool.participants.length > 0) {
+          return reply
+            .status(400)
+            .send({ message: "You already joined this pool" });
+        }
 
-      if (!pool.ownerId) {
-        await prisma.pool.update({
-          where: {
-            id: pool.id,
-          },
+        if (!pool.ownerId) {
+          await prisma.pool.update({
+            where: {
+              id: pool.id,
+            },
+            data: {
+              ownerId: request.user.sub,
+            },
+          });
+        }
+
+        await prisma.participant.create({
           data: {
-            ownerId: request.user.sub,
+            poolId: pool.id,
+            userId: request.user.sub,
           },
         });
+
+        return reply.status(201).send();
+      } catch (error) {
+        return reply.status(400).send({ message: "Internal server error" });
       }
-
-      await prisma.participant.create({
-        data: {
-          poolId: pool.id,
-          userId: request.user.sub,
-        },
-      });
-
-      return reply.status(201).send();
     }
   );
 
@@ -110,41 +114,45 @@ export async function poolsRoutes(fastify: FastifyInstance) {
       onRequest: [authenticate],
     },
     async (request, reply) => {
-      const pools = await prisma.pool.findMany({
-        where: {
-          participants: {
-            some: {
-              userId: request.user.sub,
-            },
-          },
-        },
-        include: {
-          _count: {
-            select: {
-              participants: true,
-            },
-          },
-          participants: {
-            select: {
-              id: true,
-              user: {
-                select: {
-                  avatarUrl: true,
-                },
+      try {
+        const pools = await prisma.pool.findMany({
+          where: {
+            participants: {
+              some: {
+                userId: request.user.sub,
               },
             },
-            take: 4,
           },
-          owner: {
-            select: {
-              id: true,
-              name: true,
+          include: {
+            _count: {
+              select: {
+                participants: true,
+              },
+            },
+            participants: {
+              select: {
+                id: true,
+                user: {
+                  select: {
+                    avatarUrl: true,
+                  },
+                },
+              },
+              take: 4,
+            },
+            owner: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      return reply.status(200).send({ pools });
+        return reply.status(200).send({ pools });
+      } catch (error) {
+        return reply.status(400).send({ message: "Internal server error" });
+      }
     }
   );
 
@@ -154,43 +162,47 @@ export async function poolsRoutes(fastify: FastifyInstance) {
       onRequest: [authenticate],
     },
     async (request, reply) => {
-      const getPoolParams = z.object({
-        id: z.string(),
-      });
+      try {
+        const getPoolParams = z.object({
+          id: z.string(),
+        });
 
-      const { id } = getPoolParams.parse(request.params);
+        const { id } = getPoolParams.parse(request.params);
 
-      const pool = await prisma.pool.findUnique({
-        where: {
-          id,
-        },
-        include: {
-          _count: {
-            select: {
-              participants: true,
-            },
+        const pool = await prisma.pool.findUnique({
+          where: {
+            id,
           },
-          participants: {
-            select: {
-              id: true,
-              user: {
-                select: {
-                  avatarUrl: true,
-                },
+          include: {
+            _count: {
+              select: {
+                participants: true,
               },
             },
-            take: 4,
-          },
-          owner: {
-            select: {
-              id: true,
-              name: true,
+            participants: {
+              select: {
+                id: true,
+                user: {
+                  select: {
+                    avatarUrl: true,
+                  },
+                },
+              },
+              take: 4,
+            },
+            owner: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      return reply.status(200).send({ pool });
+        return reply.status(200).send({ pool });
+      } catch (error) {
+        return reply.status(400).send({ message: "Internal server error" });
+      }
     }
   );
 }
